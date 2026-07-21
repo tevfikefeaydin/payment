@@ -48,7 +48,7 @@ catalog:
   "@playwright/test": 1.61.1
 
   # --- lint / format ---
-  eslint: 9.39.5
+  eslint: 10.7.0
   typescript-eslint: 8.64.0
   prettier: 3.9.5
 
