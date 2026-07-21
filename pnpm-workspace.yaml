@@ -49,8 +49,8 @@ catalog:
 
   # --- lint / format ---
   eslint: 9.39.5
-  typescript-eslint: 8.64.0
-  prettier: 3.9.5
+  typescript-eslint: 8.65.0
+  prettier: 3.9.6
 
   # --- types ---
   "@types/node": 26.1.1
