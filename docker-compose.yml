@@ -1,0 +1,115 @@
+# =============================================================================
+# PayRecon — LOCAL DEVELOPMENT DEPENDENCIES
+#
+# This file provides the services a developer needs to run PayRecon locally:
+# PostgreSQL and a local SMTP catcher. It does NOT run the web app or the
+# worker — those are run with `pnpm dev` and `pnpm dev:worker` so that hot
+# reload works. For containerised builds of the applications themselves, see
+# Dockerfile.web and Dockerfile.worker.
+#
+#   docker compose up -d       # start
+#   docker compose logs -f     # follow
+#   docker compose down        # stop (data survives in the named volume)
+#   docker compose down -v     # stop AND DESTROY all local data
+#
+# This is not a production deployment descriptor. The credentials below are
+# deliberately weak, well-known development values; PostgreSQL is bound to
+# 127.0.0.1 so it is never reachable from the network.
+# =============================================================================
+
+name: payrecon
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL 17 — the system of record AND the pg-boss job queue.
+  #
+  # Published on 55432 rather than 5432 so it does not collide with a system
+  # PostgreSQL, and so it matches the connection strings already in
+  # .env.example and the portable cluster created by scripts/setup-local.ps1.
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:17
+    container_name: payrecon-postgres
+    restart: unless-stopped
+    environment:
+      # Overridable from the shell, with development defaults:
+      #   POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-payrecon_dev_pw}
+      POSTGRES_DB: ${POSTGRES_DB:-payrecon_dev}
+      # C collation matches the portable cluster, so sort order and index
+      # behaviour are identical in both local setups.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      # Loopback only. Never expose a development database on 0.0.0.0.
+      - "127.0.0.1:${POSTGRES_PORT:-55432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Creates payrecon_test and payrecon_e2e on FIRST initialisation only.
+      # Files in this directory run once, when the data directory is empty.
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # `-d` matters: without it pg_isready checks a database named after the
+      # user, which may not exist.
+      test:
+        ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-payrecon_dev}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # ---------------------------------------------------------------------------
+  # Mailpit — local SMTP sink with a web UI.
+  #
+  # Catches every message the notification path sends so email rendering and
+  # escaping can be inspected without a real provider and without any risk of
+  # mailing a real address from a development machine.
+  #
+  #   SMTP: 127.0.0.1:1025      UI: http://127.0.0.1:8025
+  # ---------------------------------------------------------------------------
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: payrecon-mailpit
+    restart: unless-stopped
+    environment:
+      MP_MAX_MESSAGES: 500
+      MP_DATABASE: /data/mailpit.db
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+    ports:
+      - "127.0.0.1:${SMTP_PORT:-1025}:1025" # SMTP
+      - "127.0.0.1:8025:8025" # web UI
+    volumes:
+      - mailpit-data:/data
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  postgres-data:
+    name: payrecon-postgres-data
+  mailpit-data:
+    name: payrecon-mailpit-data
+# =============================================================================
+# Environment variables this file reads (all optional, with defaults):
+#
+#   POSTGRES_USER      default `postgres`
+#   POSTGRES_PASSWORD  default `payrecon_dev_pw`
+#   POSTGRES_DB        default `payrecon_dev`
+#   POSTGRES_PORT      default `55432`  — host port for PostgreSQL
+#   SMTP_PORT          default `1025`   — host port for Mailpit SMTP
+#
+# Matching entries for your .env, which is what the applications read:
+#
+#   DATABASE_URL=postgresql://postgres:payrecon_dev_pw@127.0.0.1:55432/payrecon_dev
+#   TEST_DATABASE_URL=postgresql://postgres:payrecon_dev_pw@127.0.0.1:55432/payrecon_test
+#   SMTP_HOST=127.0.0.1
+#   SMTP_PORT=1025
+#   SMTP_SECURE=false
+#
+# Leaving SMTP_HOST blank instead selects the console transport, which is often
+# more convenient than opening the Mailpit UI.
+# =============================================================================

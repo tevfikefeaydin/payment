@@ -1,0 +1,27 @@
+{
+  "name": "@payrecon/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/main.ts",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts",
+    "build": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@payrecon/auth": "workspace:*",
+    "@payrecon/config": "workspace:*",
+    "@payrecon/db": "workspace:*",
+    "@payrecon/domain": "workspace:*",
+    "@payrecon/jobs": "workspace:*",
+    "@payrecon/notifications": "workspace:*",
+    "@payrecon/stripe-customer-data": "workspace:*",
+    "dotenv": "catalog:",
+    "drizzle-orm": "catalog:",
+    "pg-boss": "catalog:"
+  },
+  "devDependencies": {
+    "tsx": "catalog:"
+  }
+}

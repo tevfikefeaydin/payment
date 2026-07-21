@@ -1,0 +1,60 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# Centralised dependency versions. Every workspace package references these via
+# `catalog:` so that a version is defined exactly once for the whole monorepo.
+# See docs/adr/0001-toolchain-and-versions.md for why these versions were chosen.
+catalog:
+  # --- runtime / framework ---
+  next: 16.2.10
+  react: 19.2.7
+  react-dom: 19.2.7
+
+  # --- language / build ---
+  typescript: 5.9.3
+  tsx: 4.23.1
+
+  # --- database ---
+  drizzle-orm: 0.45.2
+  drizzle-kit: 0.31.10
+  pg: 8.22.0
+
+  # --- jobs ---
+  pg-boss: 12.26.1
+
+  # --- validation ---
+  zod: 4.4.3
+
+  # --- configuration ---
+  dotenv: 17.4.2
+
+  # --- external services ---
+  stripe: 22.3.2
+  nodemailer: 9.0.3
+
+  # --- parsing ---
+  csv-parse: 7.0.1
+
+  # --- logging ---
+  pino: 10.3.1
+
+  # --- styling ---
+  tailwindcss: 4.3.3
+  "@tailwindcss/postcss": 4.3.3
+
+  # --- testing ---
+  vitest: 4.1.10
+  "@playwright/test": 1.61.1
+
+  # --- lint / format ---
+  eslint: 9.39.5
+  typescript-eslint: 8.64.0
+  prettier: 3.9.5
+
+  # --- types ---
+  "@types/node": 26.1.1
+  "@types/react": 19.2.17
+  "@types/react-dom": 19.2.3
+  "@types/pg": 8.20.0
+  "@types/nodemailer": 8.0.1

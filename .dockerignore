@@ -1,0 +1,67 @@
+# =============================================================================
+# Docker build context exclusions.
+#
+# Two jobs: keep the context small, and make sure nothing secret or
+# machine-specific can reach an image.
+# =============================================================================
+
+# --- Secrets. Never in the build context, at any stage. ----------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# --- Dependencies (reinstalled from the lockfile inside the image) -----------
+node_modules
+.pnpm-store
+
+# --- Build output ------------------------------------------------------------
+.next
+out
+dist
+build
+*.tsbuildinfo
+
+# --- Local toolchain: portable Node and PostgreSQL binaries plus a live -------
+# --- database cluster. Hundreds of MB, machine-specific, and pgdata may -------
+# --- contain real local data. ------------------------------------------------
+.toolchain
+
+# --- Test artefacts ----------------------------------------------------------
+coverage
+playwright-report
+test-results
+blob-report
+.playwright
+
+# --- Git ---------------------------------------------------------------------
+.git
+.gitignore
+.github
+
+# --- Editor / OS -------------------------------------------------------------
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# --- Logs --------------------------------------------------------------------
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# --- Not needed at build or runtime ------------------------------------------
+docs
+scripts
+e2e
+tests
+playwright.config.ts
+docker-compose.yml
+Dockerfile.*
+.dockerignore
+README.md
+CLAUDE.md
+BUILD_PROMPT.md

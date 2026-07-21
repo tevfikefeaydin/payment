@@ -1,0 +1,109 @@
+# =============================================================================
+# PayRecon background worker
+#
+# Build from the repository root:
+#   docker build -f Dockerfile.worker -t payrecon-worker .
+#
+# Runs reconciliation, Stripe synchronisation, CSV imports, notification
+# delivery and retention cleanup, and exposes health endpoints on port 3001.
+#
+# NO SECRETS ARE BAKED IN. Every value is injected at runtime via environment
+# variables and validated at startup by @payrecon/config; the process exits
+# non-zero if configuration is invalid.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Stage 1 — dependencies
+# -----------------------------------------------------------------------------
+FROM node:24-alpine AS deps
+
+RUN corepack enable
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/web/package.json                      apps/web/
+COPY apps/worker/package.json                   apps/worker/
+COPY packages/auth/package.json                 packages/auth/
+COPY packages/config/package.json               packages/config/
+COPY packages/db/package.json                   packages/db/
+COPY packages/domain/package.json               packages/domain/
+COPY packages/ingestion/package.json            packages/ingestion/
+COPY packages/jobs/package.json                 packages/jobs/
+COPY packages/notifications/package.json        packages/notifications/
+COPY packages/platform-billing/package.json     packages/platform-billing/
+COPY packages/stripe-customer-data/package.json packages/stripe-customer-data/
+
+RUN pnpm install --frozen-lockfile
+
+# -----------------------------------------------------------------------------
+# Stage 2 — typecheck and prune
+#
+# The worker runs TypeScript directly through `tsx` (its `build` script is
+# `tsc --noEmit`), so there is no emitted bundle. This stage still typechecks,
+# so a type error fails the image build rather than the container's first run.
+# -----------------------------------------------------------------------------
+FROM node:24-alpine AS builder
+
+RUN corepack enable
+WORKDIR /app
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/worker/node_modules ./apps/worker/node_modules
+COPY . .
+
+RUN pnpm --filter @payrecon/worker build
+
+# NOTE: no `pnpm prune --prod` here, deliberately.
+#
+# The worker's runtime IS `tsx`, which is declared as a devDependency of
+# @payrecon/worker. Pruning dev dependencies would delete the interpreter the
+# container needs to start. The runtime stage below copies only the worker's
+# own source and the workspace packages, which is where most of the size saving
+# comes from anyway.
+#
+# Emitting JavaScript with `tsc` and running it under plain `node` would allow a
+# full prune, but the worker's build script is `tsc --noEmit` and workspace
+# packages are consumed as TypeScript source, so that is a larger change than a
+# Dockerfile should make on its own.
+
+# -----------------------------------------------------------------------------
+# Stage 3 — runtime
+# -----------------------------------------------------------------------------
+FROM node:24-alpine AS runner
+
+RUN corepack enable
+
+# Non-root runtime user.
+RUN addgroup --system --gid 10001 payrecon \
+ && adduser  --system --uid 10001 --ingroup payrecon payrecon
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV WORKER_HEALTH_PORT=3001
+
+# Only what the worker imports: its own source, the workspace packages, and the
+# manifests pnpm needs to resolve the workspace.
+COPY --from=builder --chown=payrecon:payrecon /app/node_modules       ./node_modules
+COPY --from=builder --chown=payrecon:payrecon /app/packages           ./packages
+COPY --from=builder --chown=payrecon:payrecon /app/package.json       ./package.json
+COPY --from=builder --chown=payrecon:payrecon /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
+COPY --from=builder --chown=payrecon:payrecon /app/tsconfig.base.json ./tsconfig.base.json
+COPY --from=builder --chown=payrecon:payrecon /app/apps/worker        ./apps/worker
+
+USER payrecon
+
+EXPOSE 3001
+
+# `/health/ready` checks configuration AND database connectivity, so a worker
+# that cannot reach PostgreSQL is correctly reported unhealthy. Use
+# `/health/live` for a liveness probe instead — restarting a healthy worker
+# during a brief database blip is exactly the wrong response.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.WORKER_HEALTH_PORT||3001)+'/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+# SIGTERM triggers a graceful shutdown: stop accepting jobs, let in-flight jobs
+# finish, close the pool. Allow at least 60s of termination grace.
+STOPSIGNAL SIGTERM
+
+CMD ["pnpm", "--filter", "@payrecon/worker", "start"]

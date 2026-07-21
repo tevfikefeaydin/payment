@@ -1,0 +1,65 @@
+version: 2
+
+updates:
+  # ---------------------------------------------------------------------------
+  # npm dependencies.
+  #
+  # Only the repository root is listed. Workspace packages reference versions
+  # through the pnpm catalog in pnpm-workspace.yaml (see
+  # docs/adr/0001-toolchain-and-versions.md), so per-package entries would find
+  # `catalog:` rather than a range. Catalog bumps remain a deliberate manual
+  # step; this keeps the root devDependencies and the lockfile current.
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+    groups:
+      # One PR for all low-risk updates keeps review effort proportional to
+      # risk. Majors stay separate so a breaking change is never bundled with
+      # routine patches.
+      minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      # Pinned to 5.9.3: typescript-eslint@8 requires `<6.1.0`, so a major bump
+      # would silently break linting. See ADR 0001. Revisit when
+      # typescript-eslint publishes support for a newer compiler.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+
+  # ---------------------------------------------------------------------------
+  # GitHub Actions used by .github/workflows/*.yml.
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "chore(ci)"
+    groups:
+      actions:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"

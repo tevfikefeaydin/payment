@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "types": ["node"]
+  },
+  "include": [
+    "packages/**/*.ts",
+    "apps/worker/**/*.ts",
+    "e2e/**/*.ts",
+    "scripts/**/*.ts",
+    "*.config.ts",
+    "eslint.config.js"
+  ],
+  "exclude": ["**/node_modules/**", "**/dist/**", "**/.next/**", "packages/db/drizzle/**"]
+}

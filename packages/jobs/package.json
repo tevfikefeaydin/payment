@@ -1,0 +1,21 @@
+{
+  "name": "@payrecon/jobs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@payrecon/auth": "workspace:*",
+    "@payrecon/config": "workspace:*",
+    "@payrecon/db": "workspace:*",
+    "@payrecon/domain": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "pg-boss": "catalog:",
+    "zod": "catalog:"
+  }
+}

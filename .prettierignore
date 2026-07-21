@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.next/
+build/
+coverage/
+playwright-report/
+test-results/
+.toolchain/
+pnpm-lock.yaml
+packages/db/drizzle/
+*.tsbuildinfo

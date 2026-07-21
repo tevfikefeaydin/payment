@@ -1,0 +1,126 @@
+@import "tailwindcss";
+
+/**
+ * PayRecon design tokens.
+ *
+ * A calm, dense finance-operations palette: near-neutral surfaces, one restrained
+ * accent, and severity colours that stay legible against both light and dark
+ * backgrounds. Severity is never communicated by colour alone — every badge also
+ * carries a text label, which is what makes the inbox usable for colour-blind
+ * operators and screen readers.
+ */
+@theme {
+  --color-surface: #ffffff;
+  --color-surface-raised: #f7f8fa;
+  --color-surface-sunken: #f0f2f5;
+  --color-border: #e2e5ea;
+  --color-border-strong: #cbd1da;
+
+  --color-text: #14181f;
+  --color-text-muted: #5b6472;
+  --color-text-subtle: #808997;
+
+  --color-accent: #1f5eff;
+  --color-accent-hover: #1749cc;
+  --color-accent-subtle: #eef3ff;
+
+  --color-critical: #b42318;
+  --color-critical-bg: #fef3f2;
+  --color-high: #b54708;
+  --color-high-bg: #fffaeb;
+  --color-medium: #175cd3;
+  --color-medium-bg: #eff8ff;
+  --color-low: #475467;
+  --color-low-bg: #f2f4f7;
+
+  --color-success: #067647;
+  --color-success-bg: #ecfdf3;
+
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  @theme {
+    --color-surface: #0e1116;
+    --color-surface-raised: #161b22;
+    --color-surface-sunken: #0a0d11;
+    --color-border: #262c36;
+    --color-border-strong: #39414e;
+
+    --color-text: #e6e9ef;
+    --color-text-muted: #9aa4b2;
+    --color-text-subtle: #767f8c;
+
+    --color-accent: #6b93ff;
+    --color-accent-hover: #86a6ff;
+    --color-accent-subtle: #12203f;
+
+    --color-critical: #ff9a8f;
+    --color-critical-bg: #2d1512;
+    --color-high: #f5b170;
+    --color-high-bg: #2b1d0e;
+    --color-medium: #7cb2ff;
+    --color-medium-bg: #101f33;
+    --color-low: #9aa4b2;
+    --color-low-bg: #1a1f27;
+
+    --color-success: #6ee7a8;
+    --color-success-bg: #0d2419;
+  }
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Numeric columns must align on the decimal point to be scannable. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+}
+
+/*
+ * A visible focus ring is a hard requirement, not a preference: the exception
+ * inbox is keyboard-driven for operators triaging in bulk.
+ */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* Skip link, revealed only when focused. */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+}
+.skip-link:focus {
+  left: 0.5rem;
+  top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,108 @@
+# =============================================================================
+# PayRecon web application (Next.js)
+#
+# Build from the repository root:
+#   docker build -f Dockerfile.web -t payrecon-web .
+#
+# NO SECRETS ARE BAKED IN. Every value is injected at runtime via environment
+# variables and validated at startup by @payrecon/config.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Stage 1 — dependencies
+#
+# Copied separately from the source so that a source-only change does not
+# invalidate the (slow) install layer.
+# -----------------------------------------------------------------------------
+FROM node:24-alpine AS deps
+
+RUN corepack enable
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/web/package.json                      apps/web/
+COPY apps/worker/package.json                   apps/worker/
+COPY packages/auth/package.json                 packages/auth/
+COPY packages/config/package.json               packages/config/
+COPY packages/db/package.json                   packages/db/
+COPY packages/domain/package.json               packages/domain/
+COPY packages/ingestion/package.json            packages/ingestion/
+COPY packages/jobs/package.json                 packages/jobs/
+COPY packages/notifications/package.json        packages/notifications/
+COPY packages/platform-billing/package.json     packages/platform-billing/
+COPY packages/stripe-customer-data/package.json packages/stripe-customer-data/
+
+# --frozen-lockfile: fail rather than silently resolve different versions.
+RUN pnpm install --frozen-lockfile
+
+# -----------------------------------------------------------------------------
+# Stage 2 — build
+# -----------------------------------------------------------------------------
+FROM node:24-alpine AS builder
+
+RUN corepack enable
+WORKDIR /app
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
+COPY . .
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# next.config.ts loads the root .env if present. It is excluded by
+# .dockerignore, so nothing is read from the build context. These placeholders
+# satisfy startup validation during `next build` and have no security meaning:
+# they never reach the final image, which starts from a clean stage below.
+RUN APP_URL=https://build.invalid \
+    DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build \
+    AUTH_SECRET=build-time-placeholder-not-a-real-secret-value \
+    ENCRYPTION_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= \
+    ENCRYPTION_KEY_ID=build \
+    pnpm --filter @payrecon/web build
+
+# Drop dev dependencies now that the build is done. Everything left is what the
+# server genuinely needs at runtime.
+RUN pnpm prune --prod
+
+# -----------------------------------------------------------------------------
+# Stage 3 — runtime
+#
+# Starts from a clean base: no build tooling, no dev dependencies, and none of
+# the build-stage environment.
+# -----------------------------------------------------------------------------
+FROM node:24-alpine AS runner
+
+RUN corepack enable
+
+# Non-root runtime user. A compromised process cannot write to the application
+# directory, which it never needs to.
+RUN addgroup --system --gid 10001 payrecon \
+ && adduser  --system --uid 10001 --ingroup payrecon payrecon
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+
+# Workspace packages export TypeScript source and are listed in
+# `transpilePackages`, so their sources must be present alongside the build
+# output.
+COPY --from=builder --chown=payrecon:payrecon /app/node_modules   ./node_modules
+COPY --from=builder --chown=payrecon:payrecon /app/packages       ./packages
+COPY --from=builder --chown=payrecon:payrecon /app/package.json   ./package.json
+COPY --from=builder --chown=payrecon:payrecon /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
+COPY --from=builder --chown=payrecon:payrecon /app/apps/web       ./apps/web
+
+USER payrecon
+
+EXPOSE 3000
+
+# `/health` is implemented at apps/web/app/health/route.ts.
+# --start-period gives Next time to boot before a failure counts against the
+# container.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+CMD ["pnpm", "--filter", "@payrecon/web", "start"]
