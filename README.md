@@ -1,5 +1,8 @@
 # PayRecon
 
+[![CI](https://github.com/tevfikefeaydin/payment/actions/workflows/ci.yml/badge.svg)](https://github.com/tevfikefeaydin/payment/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/tevfikefeaydin/payment/actions/workflows/codeql.yml/badge.svg)](https://github.com/tevfikefeaydin/payment/actions/workflows/codeql.yml)
+
 **Catch payment bugs before they become lost revenue.**
 
 Monitor Stripe and your application's payment records from one exception inbox.
