@@ -73,21 +73,23 @@ export default async function OrganizationLayout({
   return (
     <div className="min-h-screen md:flex">
       {/* Sidebar */}
-      <div className="border-b border-[var(--color-border)] bg-[var(--color-surface-raised)] md:w-64 md:shrink-0 md:border-r md:border-b-0">
+      <div className="border-b border-[var(--color-border)] bg-[var(--color-surface-sunken)] md:w-64 md:shrink-0 md:border-r md:border-b-0">
         <div className="flex flex-col gap-4 px-4 py-4 md:h-screen md:sticky md:top-0 md:overflow-y-auto">
           <div>
-            <Link href="/app" className="text-sm font-semibold tracking-tight">
+            <Link href="/app" className="text-lg font-semibold tracking-tight">
               {PRODUCT.name}
             </Link>
           </div>
 
           {/* Organization switcher. A native <details> is keyboard operable and
               needs no JavaScript. */}
-          <details className="group rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface)]">
+          <details className="group rounded-md border border-[var(--color-border)] bg-[var(--color-surface)]">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-sm">
               <span className="min-w-0">
-                <span className="block truncate font-medium">{org.organizationName}</span>
-                <span className="block text-xs text-[var(--color-text-muted)]">
+                <span className="block truncate text-xs font-semibold tracking-widest text-[var(--color-accent)] uppercase">
+                  {org.organizationName}
+                </span>
+                <span className="mt-0.5 block text-xs text-[var(--color-text-muted)]">
                   Your role: {org.role}
                   {org.isDemo ? " · demo data" : ""}
                 </span>

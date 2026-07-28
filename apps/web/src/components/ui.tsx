@@ -27,7 +27,7 @@ type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 
 const BUTTON_STYLES: Record<ButtonVariant, string> = {
   primary:
-    "bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] border-transparent",
+    "bg-[var(--color-accent-strong)] text-white hover:bg-[var(--color-accent-strong-hover)] border-transparent",
   secondary:
     "bg-[var(--color-surface)] text-[var(--color-text)] hover:bg-[var(--color-surface-raised)] border-[var(--color-border-strong)]",
   ghost:
@@ -98,7 +98,7 @@ export function Card({
   return (
     <section
       className={cx(
-        "rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]",
+        "rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-raised)]",
         className,
       )}
     >
@@ -144,18 +144,23 @@ export function PageHeader({
 // Status badges — colour PLUS text, never colour alone
 // ---------------------------------------------------------------------------
 
+/**
+ * Severity pills follow the design's violet scale: critical is the only filled
+ * violet pill, high is outlined violet, medium and low step down to grey. The
+ * ranking reads at a glance while the text label keeps it unambiguous.
+ */
 const SEVERITY_STYLES: Record<string, string> = {
-  critical: "bg-[var(--color-critical-bg)] text-[var(--color-critical)]",
-  high: "bg-[var(--color-high-bg)] text-[var(--color-high)]",
-  medium: "bg-[var(--color-medium-bg)] text-[var(--color-medium)]",
-  low: "bg-[var(--color-low-bg)] text-[var(--color-low)]",
+  critical: "border-transparent bg-[var(--color-accent-strong)] text-white",
+  high: "border-[var(--color-accent)] bg-transparent text-[var(--color-accent)]",
+  medium: "border-transparent bg-[var(--color-low-bg)] text-[var(--color-text)]",
+  low: "border-[var(--color-border-strong)] bg-transparent text-[var(--color-text-muted)]",
 };
 
 export function SeverityBadge({ severity }: { severity: string }) {
   return (
     <span
       className={cx(
-        "inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium capitalize",
+        "inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium capitalize",
         SEVERITY_STYLES[severity] ?? SEVERITY_STYLES.low,
       )}
     >
