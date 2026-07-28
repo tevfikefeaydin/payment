@@ -161,17 +161,19 @@ in the other direction.
 
 Stated plainly rather than described as done:
 
-- ~~CSV import UI~~ **Done, verified live 2026-07-28**: upload + column mapping
-  - amount-unit/date-format selection on the imports screen; a live upload of a
-    3-row file produced 2 inserted records and 1 recorded row error
-    (`completed_with_errors`), all visible in the UI.
+- ~~CSV import UI~~ **Done, verified live 2026-07-28**: upload, column mapping
+  and amount-unit/date-format selection on the imports screen; a live upload of
+  a 3-row file produced 2 inserted records and 1 recorded row error
+  (`completed_with_errors`), all visible in the UI.
 - ~~Password reset and email verification~~ **Done, verified live 2026-07-28**:
   the flows are wired to the UI and a real reset was completed end-to-end over
   SMTP in production.
 - **Notification and API-key management screens** are stubs; the underlying
   packages are implemented and tested.
-- **Billing screens** are a stub; `@payrecon/platform-billing` is implemented and
-  tested against fixtures.
+- ~~Billing screens~~ **Done, verified live 2026-07-28** against Stripe test
+  mode: checkout session creation from the billing screen, webhook signature
+  verification at `/api/billing/webhook`, subscribe → plan upgrade and cancel →
+  downgrade all observed against the production database.
 - **Retention cleanup** covers uploaded CSV content and dead sessions only — not
   expired idempotency records or elapsed rate-limit windows.
 - **No metrics backend.** The abstraction points exist; `pino` is in the catalog
