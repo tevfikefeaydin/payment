@@ -116,7 +116,11 @@ export function ActionForm({
   useEffect(() => {
     if (state.status !== "success") return;
     if (state.redirectTo) {
-      router.push(state.redirectTo);
+      if (/^https?:\/\//.test(state.redirectTo)) {
+        window.location.assign(state.redirectTo);
+      } else {
+        router.push(state.redirectTo);
+      }
       return;
     }
     // Server components hold the data; refreshing is what makes the change

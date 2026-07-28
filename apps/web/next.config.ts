@@ -44,11 +44,16 @@ const config: NextConfig = {
    * Next's inlined critical CSS both emit style attributes.
    */
   async headers() {
+    const scriptSources = ["'self'", "'unsafe-inline'"];
+    if (process.env.NODE_ENV === "development") {
+      scriptSources.push("'unsafe-eval'");
+    }
+
     const csp = [
       "default-src 'self'",
       // Next injects a small inline bootstrap script; nonce-based CSP is not
       // yet expressible for it in a static header, so scripts stay same-origin.
-      "script-src 'self' 'unsafe-inline'",
+      `script-src ${scriptSources.join(" ")}`,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data:",
       "font-src 'self'",

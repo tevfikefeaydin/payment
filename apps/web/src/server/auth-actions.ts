@@ -22,6 +22,7 @@ import {
 import { loadEnv } from "@payrecon/config/env";
 import { PublicError, toSafeError } from "@payrecon/domain";
 import { db } from "./db";
+import { sendEmailVerification } from "./account-token-actions";
 import { endSession, getCurrentUser, startSession } from "./session";
 import { actionError, actionSuccess, type ActionState } from "./actions";
 
@@ -127,6 +128,10 @@ export async function signUpAction(
       targetId: org.id,
       metadata: { name: orgName },
     });
+
+    // Email delivery is deliberately best-effort: an SMTP outage must not
+    // strand a freshly created account or expose transport details to a user.
+    await sendEmailVerification({ id: created.id, email });
 
     return actionSuccess(undefined, `/orgs/${org.id}`);
   } catch (error) {

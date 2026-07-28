@@ -24,7 +24,10 @@ export default async function SignInPage() {
           <Link href="/sign-up" className="underline">
             Create one
           </Link>
-          .
+          .{" "}
+          <Link href="/forgot-password" className="underline">
+            Forgot your password?
+          </Link>
         </>
       }
     >

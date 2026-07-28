@@ -4,6 +4,11 @@ import { useActionState, useEffect } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 import { signInAction, signUpAction } from "@/server/auth-actions";
+import {
+  requestPasswordResetAction,
+  resetPasswordAction,
+  verifyEmailAction,
+} from "@/server/account-token-actions";
 import type { ActionState } from "@/server/actions";
 import { Alert, Button, Field, Input } from "./ui";
 
@@ -171,6 +176,49 @@ export function SignUpForm() {
       {state.status === "success" && (
         <Alert tone="success">Account created. Taking you to your workspace…</Alert>
       )}
+    </form>
+  );
+}
+
+export function PasswordResetRequestForm() {
+  const [state, formAction] = useActionState(requestPasswordResetAction, IDLE);
+  return (
+    <form action={formAction} className="space-y-4">
+      {generalError(state) && <Alert tone="error">{generalError(state)}</Alert>}
+      <Field label="Email" htmlFor="email">
+        <Input id="email" name="email" type="email" autoComplete="email" required autoFocus />
+      </Field>
+      <Submit label="Send reset link" pendingLabel="Sending…" />
+      {state.status === "success" && <Alert tone="success">{state.message}</Alert>}
+    </form>
+  );
+}
+
+export function ResetPasswordForm({ token }: { token: string }) {
+  const [state, formAction] = useActionState(resetPasswordAction, IDLE);
+  useRedirectOnSuccess(state);
+  return (
+    <form action={formAction} className="space-y-4">
+      {generalError(state) && <Alert tone="error">{generalError(state)}</Alert>}
+      <input type="hidden" name="token" value={token} />
+      <Field label="New password" htmlFor="password" hint="At least 12 characters.">
+        <Input id="password" name="password" type="password" autoComplete="new-password" required />
+      </Field>
+      <Submit label="Reset password" pendingLabel="Resetting…" />
+      {state.status === "success" && <Alert tone="success">{state.message}</Alert>}
+    </form>
+  );
+}
+
+export function VerifyEmailForm({ token }: { token: string }) {
+  const [state, formAction] = useActionState(verifyEmailAction, IDLE);
+  useRedirectOnSuccess(state);
+  return (
+    <form action={formAction} className="space-y-4">
+      {generalError(state) && <Alert tone="error">{generalError(state)}</Alert>}
+      <input type="hidden" name="token" value={token} />
+      <Submit label="Verify email" pendingLabel="Verifying…" />
+      {state.status === "success" && <Alert tone="success">{state.message}</Alert>}
     </form>
   );
 }
