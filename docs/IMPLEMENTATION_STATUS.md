@@ -161,11 +161,13 @@ in the other direction.
 
 Stated plainly rather than described as done:
 
-- **CSV import UI.** The parser, validation, row-error reporting and the worker
-  handler all exist and are tested; the upload/mapping/preview **screens** are
-  stubs. The REST ingestion API is complete and exercised over real HTTP.
-- **Password reset and email verification.** Token storage and the
-  single-use/expiry model exist (`auth_tokens`); the flows are not wired to the UI.
+- ~~CSV import UI~~ **Done, verified live 2026-07-28**: upload + column mapping
+  - amount-unit/date-format selection on the imports screen; a live upload of a
+    3-row file produced 2 inserted records and 1 recorded row error
+    (`completed_with_errors`), all visible in the UI.
+- ~~Password reset and email verification~~ **Done, verified live 2026-07-28**:
+  the flows are wired to the UI and a real reset was completed end-to-end over
+  SMTP in production.
 - **Notification and API-key management screens** are stubs; the underlying
   packages are implemented and tested.
 - **Billing screens** are a stub; `@payrecon/platform-billing` is implemented and

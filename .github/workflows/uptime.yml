@@ -1,0 +1,35 @@
+name: Uptime
+
+# Polls the production health endpoint on a schedule. A non-200 answer fails
+# the run, and GitHub notifies the repository owner about failed scheduled
+# workflows — which turns this into a free uptime alert with no third-party
+# service and no credentials.
+#
+# The worker's health endpoint is added here once the worker moves to a host
+# with a public URL.
+
+on:
+  schedule:
+    # Every 15 minutes. GitHub may delay scheduled runs by a few minutes under
+    # load; that jitter is fine for an availability check.
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  web:
+    name: Web /health
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe https://payment-web-ruddy.vercel.app/health
+        run: |
+          status=$(curl -sS -o body.json -w "%{http_code}" --max-time 20 \
+            "https://payment-web-ruddy.vercel.app/health" || echo "000")
+          echo "HTTP $status"
+          cat body.json 2>/dev/null || true
+          if [ "$status" != "200" ]; then
+            echo "::error::Web health check failed with HTTP $status"
+            exit 1
+          fi
