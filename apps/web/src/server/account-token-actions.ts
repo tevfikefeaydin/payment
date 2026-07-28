@@ -7,6 +7,7 @@ import { PRODUCT } from "@payrecon/config";
 import { authTokens, recordAudit, sessions, users } from "@payrecon/db";
 import { createTransports } from "@payrecon/notifications";
 import { actionError, actionSuccess, type ActionState } from "./actions";
+import { AUTH_RATE_LIMITS, clientIpHash, isAuthRateLimited } from "./auth-rate-limit";
 import { db } from "./db";
 import { startSession } from "./session";
 
@@ -89,6 +90,13 @@ export async function requestPasswordResetAction(
   const email = normalizeEmail(formData.get("email"));
   if (!email) return actionSuccess(generic);
 
+  // Rate-limited callers get the SAME generic success and simply no email:
+  // revealing the limit would confirm that earlier requests matched accounts.
+  const ipHash = await clientIpHash();
+  if (await isAuthRateLimited(ipHash, AUTH_RATE_LIMITS.passwordReset)) {
+    return actionSuccess(generic);
+  }
+
   const [user] = await db()
     .select({ id: users.id, email: users.email })
     .from(users)
@@ -104,6 +112,8 @@ export async function requestPasswordResetAction(
       action: "auth.password_reset_requested",
       targetType: "user",
       targetId: user.id,
+      // The limiter counts these rows per network, so the hash must be present.
+      ipHash,
     });
   } catch (error) {
     console.error("[auth] password reset email failed", {

@@ -67,6 +67,11 @@ const envSchema = z.object({
   TEST_DATABASE_URL: z.string().optional(),
 
   AUTH_SECRET: nonEmpty("AUTH_SECRET").min(32, "AUTH_SECRET must be at least 32 characters"),
+  /**
+   * When false, creating an account requires a pending invitation for that
+   * email address. Existing accounts and invitation redemption are unaffected.
+   */
+  ALLOW_PUBLIC_SIGNUP: booleanish.default(true),
   SESSION_MAX_AGE_SECONDS: z.coerce.number().int().positive().default(2_592_000),
   SESSION_IDLE_TIMEOUT_SECONDS: z.coerce.number().int().positive().default(604_800),
 

@@ -1,6 +1,5 @@
 "use server";
 
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import {
@@ -12,7 +11,6 @@ import {
 } from "@payrecon/db";
 import {
   generateToken,
-  hashIp,
   hashToken,
   hashPassword,
   needsRehash,
@@ -23,6 +21,7 @@ import { loadEnv } from "@payrecon/config/env";
 import { PublicError, toSafeError } from "@payrecon/domain";
 import { db } from "./db";
 import { sendEmailVerification } from "./account-token-actions";
+import { AUTH_RATE_LIMITS, clientIpHash, isAuthRateLimited } from "./auth-rate-limit";
 import { endSession, getCurrentUser, startSession } from "./session";
 import { actionError, actionSuccess, type ActionState } from "./actions";
 
@@ -74,6 +73,40 @@ export async function signUpAction(
     if (!strength.ok)
       return actionError(strength.message ?? "Password is not acceptable.", "weak_password");
 
+    const ipHash = await clientIpHash();
+    if (await isAuthRateLimited(ipHash, AUTH_RATE_LIMITS.signUp)) {
+      return actionError(
+        "Too many accounts have been created from this network recently. Try again later.",
+        "rate_limited",
+      );
+    }
+
+    const env = loadEnv();
+    if (!env.ALLOW_PUBLIC_SIGNUP) {
+      // Invite-only mode: an account may be created only for an address that
+      // holds a live invitation. The invitation itself is still redeemed
+      // through acceptInvitationAction, which re-verifies everything.
+      const [invited] = await db()
+        .select({ id: invitations.id })
+        .from(invitations)
+        .where(
+          and(
+            sql`lower(${invitations.email}) = ${email}`,
+            isNull(invitations.acceptedAt),
+            isNull(invitations.revokedAt),
+            sql`${invitations.expiresAt} > now()`,
+          ),
+        )
+        .limit(1);
+
+      if (!invited) {
+        return actionError(
+          "Sign-ups are currently invite-only. Ask an organization owner or admin to send you an invitation.",
+          "invite_only",
+        );
+      }
+    }
+
     const passwordHash = await hashPassword(password);
 
     const [existing] = await db()
@@ -98,15 +131,13 @@ export async function signUpAction(
 
     if (!created) return actionError("Could not create your account.", "internal_error");
 
-    const headerList = await headers();
-    const env = loadEnv();
     await recordAudit(db(), {
       organizationId: null,
       actor: { type: "user", userId: created.id },
       action: "auth.signed_up",
       targetType: "user",
       targetId: created.id,
-      ipHash: hashIp(headerList.get("x-forwarded-for")?.split(",")[0]?.trim(), env.AUTH_SECRET),
+      ipHash,
     });
 
     await startSession(created.id);
@@ -156,6 +187,16 @@ export async function signInAction(
       return actionError(GENERIC, "invalid_credentials");
     }
 
+    // The refusal message is identical whether or not the account exists, so
+    // the limiter cannot be used as an enumeration oracle.
+    const rateIpHash = await clientIpHash();
+    if (await isAuthRateLimited(rateIpHash, AUTH_RATE_LIMITS.signIn)) {
+      return actionError(
+        "Too many failed sign-in attempts from this network. Wait a few minutes and try again.",
+        "rate_limited",
+      );
+    }
+
     const [user] = await db()
       .select({
         id: users.id,
@@ -169,12 +210,7 @@ export async function signInAction(
     // Always verify SOMETHING so the timing of a missing account matches.
     const ok = await verifyPassword(password, user?.passwordHash ?? DUMMY_HASH);
 
-    const headerList = await headers();
-    const env = loadEnv();
-    const ipHash = hashIp(
-      headerList.get("x-forwarded-for")?.split(",")[0]?.trim(),
-      env.AUTH_SECRET,
-    );
+    const ipHash = rateIpHash;
 
     if (!user || !ok || user.disabledAt) {
       await recordAudit(db(), {

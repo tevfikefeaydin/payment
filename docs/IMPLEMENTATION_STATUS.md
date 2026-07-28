@@ -175,7 +175,10 @@ Stated plainly rather than described as done:
 - **No metrics backend.** The abstraction points exist; `pino` is in the catalog
   but no shared logger is wired.
 - **No dead-letter UI.** pg-boss records terminal failures; nothing surfaces them.
-- **No rate limiting on authentication** (the ingestion API _is_ rate limited).
+- ~~No rate limiting on authentication~~ **Done 2026-07-28**: sign-in, sign-up
+  and password-reset are fixed-window rate limited per keyed IP hash, using the
+  append-only audit log as the counter (`apps/web/src/server/auth-rate-limit.ts`).
+  Sign-up can additionally be made invite-only with `ALLOW_PUBLIC_SIGNUP=false`.
 - **No key re-encryption driver.** `rotateEnvelope` exists; nothing iterates the
   tables yet.
 
