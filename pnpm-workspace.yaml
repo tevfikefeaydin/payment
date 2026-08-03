@@ -7,9 +7,9 @@ packages:
 # See docs/adr/0001-toolchain-and-versions.md for why these versions were chosen.
 catalog:
   # --- runtime / framework ---
-  next: 16.2.10
-  react: 19.2.7
-  react-dom: 19.2.7
+  next: 16.2.12
+  react: 19.2.8
+  react-dom: 19.2.8
 
   # --- language / build ---
   typescript: 5.9.3
@@ -21,7 +21,7 @@ catalog:
   pg: 8.22.0
 
   # --- jobs ---
-  pg-boss: 12.26.1
+  pg-boss: 12.26.3
 
   # --- validation ---
   zod: 4.4.3
@@ -30,7 +30,7 @@ catalog:
   dotenv: 17.4.2
 
   # --- external services ---
-  stripe: 22.3.2
+  stripe: 22.4.0
   nodemailer: 9.0.3
 
   # --- parsing ---
@@ -45,16 +45,16 @@ catalog:
 
   # --- testing ---
   vitest: 4.1.10
-  "@playwright/test": 1.61.1
+  "@playwright/test": 1.62.1
 
   # --- lint / format ---
   eslint: 9.39.5
-  typescript-eslint: 8.64.0
-  prettier: 3.9.5
+  typescript-eslint: 8.65.0
+  prettier: 3.9.6
 
   # --- types ---
-  "@types/node": 26.1.1
-  "@types/react": 19.2.17
-  "@types/react-dom": 19.2.3
+  "@types/node": 26.1.2
+  "@types/react": 19.2.18
+  "@types/react-dom": 19.2.4
   "@types/pg": 8.20.0
   "@types/nodemailer": 8.0.1
