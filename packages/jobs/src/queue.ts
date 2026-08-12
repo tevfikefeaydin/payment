@@ -1,6 +1,7 @@
 // pg-boss v12 ships a named export, not a default.
 import { PgBoss } from "pg-boss";
 import { z } from "zod";
+import { jobsLogger } from "./log";
 
 /**
  * PostgreSQL-backed job queue.
@@ -28,6 +29,8 @@ export const QUEUE_NAMES = {
   notificationSend: "notification.send-pending",
   retentionCleanup: "retention.cleanup",
   sessionCleanup: "session.cleanup",
+  /** Re-encrypts credential envelopes still under a retired master key. */
+  keyRotation: "maintenance.rotate-envelopes",
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
@@ -118,7 +121,7 @@ export async function getQueue(options: QueueOptions): Promise<PgBoss> {
 
   // An unhandled 'error' event would crash the process; log and keep serving.
   instance.on("error", (error: Error) => {
-    console.error("[queue] error", { name: error.name, message: error.message });
+    jobsLogger().error({ name: error.name, message: error.message }, "queue error");
   });
 
   await instance.start();
@@ -205,6 +208,7 @@ export async function registerSchedules(
   await queue.schedule(QUEUE_NAMES.notificationSend, "* * * * *", {}, RETRY_POLICIES.delivery);
   await queue.schedule(QUEUE_NAMES.retentionCleanup, "0 3 * * *", {}, RETRY_POLICIES.maintenance);
   await queue.schedule(QUEUE_NAMES.sessionCleanup, "30 3 * * *", {}, RETRY_POLICIES.maintenance);
+  await queue.schedule(QUEUE_NAMES.keyRotation, "0 4 * * *", {}, RETRY_POLICIES.maintenance);
   // One scheduled TICK fans out a job per organization. Registering one cron
   // entry per tenant would not scale, and would have to be reconciled every time
   // an organization is created or deleted.

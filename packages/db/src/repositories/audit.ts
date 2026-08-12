@@ -87,6 +87,7 @@ export const AUDIT_ACTIONS = [
   // retention and data lifecycle
   "retention.settings_changed",
   "retention.cleanup_ran",
+  "encryption.envelopes_rotated",
   "data.exported",
 ] as const;
 

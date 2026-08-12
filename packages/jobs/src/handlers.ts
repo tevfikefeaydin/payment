@@ -1,13 +1,15 @@
 import type { PgBoss, Job } from "pg-boss";
 import { and, eq, isNull, lt, sql } from "drizzle-orm";
 import {
+  apiIdempotencyRecords,
+  apiRateLimitBuckets,
   importBatches,
   organizations,
   recordAudit,
   runReconciliationForOrganization,
   type Database,
 } from "@payrecon/db";
-import { purgeDeadSessions } from "@payrecon/auth";
+import { getKeyring, purgeDeadSessions } from "@payrecon/auth";
 import { errorCategory, redactSecretsInText } from "@payrecon/domain";
 import {
   QUEUE_NAMES,
@@ -23,6 +25,9 @@ import {
   handleStripeSync,
   type IntegrationDeps,
 } from "./worker-handlers";
+import { rotateStoredEnvelopes } from "./key-rotation";
+import { jobsLogger } from "./log";
+import type { MetricsRegistry } from "@payrecon/observability";
 
 /**
  * Job handlers.
@@ -46,6 +51,8 @@ export interface HandlerDeps {
    * performs reconciliation and maintenance.
    */
   integrations?: IntegrationDeps;
+  /** When present, every job outcome is counted (processed/failed per queue). */
+  metrics?: MetricsRegistry;
 }
 
 /** Confirm the organization still exists and is not deleted. */
@@ -95,6 +102,12 @@ export async function handleReconciliationScheduleTick(deps: HandlerDeps): Promi
 }
 
 /**
+ * Elapsed rate-limit buckets older than this are swept. Far longer than any
+ * window the ingestion API uses, so a still-active window can never be deleted.
+ */
+const RATE_LIMIT_BUCKET_GRACE_MS = 24 * 60 * 60 * 1000;
+
+/**
  * Retention cleanup.
  *
  * Removes the raw uploaded CSV content once it is older than the organization's
@@ -102,10 +115,22 @@ export async function handleReconciliationScheduleTick(deps: HandlerDeps): Promi
  * still needs to see that an import happened and what failed — but the source
  * file, which is the part containing customer data, does not need to persist.
  *
+ * Also sweeps technical state with an inherent TTL, globally rather than per
+ * organization: expired API idempotency records (only deleted lazily on key
+ * reuse otherwise) and rate-limit buckets whose fixed window has long elapsed.
+ *
  * Audit rows are never touched here; they are append-only and are removed only
  * by the privileged purge path.
  */
 export async function handleRetentionCleanup(deps: HandlerDeps): Promise<void> {
+  const now = new Date();
+
+  const bucketCutoff = new Date(now.getTime() - RATE_LIMIT_BUCKET_GRACE_MS);
+  await deps.db.delete(apiIdempotencyRecords).where(lt(apiIdempotencyRecords.expiresAt, now));
+  await deps.db
+    .delete(apiRateLimitBuckets)
+    .where(lt(apiRateLimitBuckets.windowStart, bucketCutoff));
+
   const orgs = await deps.db
     .select({ id: organizations.id, retentionDays: organizations.retentionDays })
     .from(organizations)
@@ -147,31 +172,58 @@ export async function handleSessionCleanup(deps: HandlerDeps): Promise<void> {
 }
 
 /**
- * Register every handler with the queue.
- *
- * pg-boss delivers an ARRAY of jobs to a handler. Each job is processed
- * independently so that one bad payload cannot fail its whole batch.
+ * Re-encrypt stored credential envelopes under the active master key.
+ * A no-op sweep when no rotation is in progress; see `rotateStoredEnvelopes`.
  */
-export async function registerHandlers(deps: HandlerDeps): Promise<void> {
-  const work = async (name: string, handler: (raw: unknown) => Promise<void>): Promise<void> => {
-    await deps.queue.work<unknown>(name, { batchSize: 1 }, async (jobs: Job<unknown>[]) => {
-      for (const job of jobs) {
-        try {
-          await handler(job.data);
-        } catch (error) {
-          // Log a sanitised summary, then rethrow so pg-boss applies its retry
-          // policy and, on exhaustion, records a terminal failure.
-          console.error("[worker] job failed", {
+export async function handleKeyRotation(deps: HandlerDeps): Promise<void> {
+  await rotateStoredEnvelopes(deps.db, getKeyring());
+}
+
+/**
+ * Process one delivered batch, counting outcomes and logging failures.
+ *
+ * pg-boss delivers an ARRAY of jobs to a handler; each job is processed
+ * independently so that one bad payload cannot fail its whole batch. Exported
+ * so the counting and rethrow behaviour can be unit-tested without a running
+ * pg-boss instance.
+ */
+export function jobBatchRunner(
+  name: string,
+  handler: (raw: unknown) => Promise<void>,
+  metrics?: MetricsRegistry,
+): (jobs: Job<unknown>[]) => Promise<void> {
+  return async (jobs: Job<unknown>[]): Promise<void> => {
+    for (const job of jobs) {
+      try {
+        await handler(job.data);
+        metrics?.increment("jobs_processed_total", { queue: name });
+      } catch (error) {
+        metrics?.increment("jobs_failed_total", { queue: name });
+        // Log a sanitised summary, then rethrow so pg-boss applies its retry
+        // policy and, on exhaustion, records a terminal failure.
+        jobsLogger().error(
+          {
             queue: name,
             jobId: job.id,
             category: errorCategory(error),
             message:
               error instanceof Error ? redactSecretsInText(error.message).slice(0, 300) : "unknown",
-          });
-          throw error;
-        }
+          },
+          "job failed",
+        );
+        throw error;
       }
-    });
+    }
+  };
+}
+
+export async function registerHandlers(deps: HandlerDeps): Promise<void> {
+  const work = async (name: string, handler: (raw: unknown) => Promise<void>): Promise<void> => {
+    await deps.queue.work<unknown>(
+      name,
+      { batchSize: 1 },
+      jobBatchRunner(name, handler, deps.metrics),
+    );
   };
 
   await work(QUEUE_NAMES.reconciliationRun, (raw) => handleReconciliationRun(deps, raw));
@@ -181,6 +233,7 @@ export async function registerHandlers(deps: HandlerDeps): Promise<void> {
   });
   await work(QUEUE_NAMES.retentionCleanup, async () => handleRetentionCleanup(deps));
   await work(QUEUE_NAMES.sessionCleanup, async () => handleSessionCleanup(deps));
+  await work(QUEUE_NAMES.keyRotation, async () => handleKeyRotation(deps));
 
   // Integration handlers are optional: a deployment that has not configured the
   // integrations still runs reconciliation. Without this, those queues would
