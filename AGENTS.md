@@ -127,6 +127,7 @@ These are not style preferences. Breaking one is a defect.
 | Queue names, payloads, retries     | `packages/jobs/src/queue.ts`                     |
 | Job handlers                       | `packages/jobs/src/handlers.ts`                  |
 | Worker entry + health              | `apps/worker/src/main.ts`                        |
+| Shared redacting logger            | `packages/observability/src/logger.ts`           |
 | Env schema                         | `packages/config/src/env.ts`                     |
 | Plans and limits                   | `packages/config/src/plans.ts`                   |
 | Product name / cookie names        | `packages/config/src/product.ts`                 |
@@ -151,11 +152,28 @@ These are not style preferences. Breaking one is a defect.
 
 Do not describe these as working:
 
-- **Four queues have no handler**: `stripe.sync`, `import.process`,
-  `notification.dispatch`, `notification.send-pending`. They accept jobs; nothing
-  consumes them. See `registerHandlers` in `packages/jobs/src/handlers.ts`.
-- Retention cleanup clears only `import_batches.raw_content` and dead sessions —
-  not expired idempotency records, elapsed rate-limit windows, or provider data.
-- No dead-letter UI (inspect `pgboss.job` with SQL) and no metrics backend.
-- No key re-encryption job. `rotateEnvelope` exists; nothing drives it over the
-  tables.
+- Retention cleanup clears `import_batches.raw_content`, dead sessions, expired
+  API idempotency records and elapsed rate-limit buckets — not provider data.
+- No external metrics backend — the worker counts job outcomes and logs a
+  per-minute snapshot (`@payrecon/observability`); nothing scrapes or ships
+  them. Tenant-scoped dead-letter rows appear on the runs screen;
+  instance-wide maintenance failures still need SQL over `pgboss.job`.
+
+<!-- vibecode-bridge:start -->
+
+## Paneller Arası Haberleşme (VibeCode Terminal)
+
+Bu proje, VibeCode Terminal içinde bir panelde çalışıyor olabilir. Yan panellerde
+başka agent'lar (Claude Code, Codex...) veya shell'ler çalışır. Onlarla haberleşmek
+için `_holding/AGENTS-BRIDGE.md` dosyasını oku ve oradaki `vibe` CLI'yi kullan.
+
+Şirket (company) panellerinde: süreç dosyaları (SIRKET/VIZYON/PLAN/DESIGN/JURI/TESLIM…)
+`_holding/` altında tutulur, playbook rolleri ise `../../playbooks/` altındadır (kök temiz kalsın).
+
+Hızlı özet (PowerShell):
+
+- Panelleri listele: `node $env:VIBE_CLI targets`
+- Mesaj gönder: `node $env:VIBE_CLI send --to "Workspace/Panel" "mesaj"`
+
+Kural: yalnızca kullanıcı istediğinde başka panele mesaj gönder.
+<!-- vibecode-bridge:end -->

@@ -3,7 +3,7 @@
 Live, evidence-backed record of what exists and what does not. Every "verified"
 claim corresponds to a command that was actually run, with its real output.
 
-**Last updated:** 2026-07-21
+**Last updated:** 2026-08-10
 
 ---
 
@@ -168,23 +168,51 @@ Stated plainly rather than described as done:
 - ~~Password reset and email verification~~ **Done, verified live 2026-07-28**:
   the flows are wired to the UI and a real reset was completed end-to-end over
   SMTP in production.
-- **Notification and API-key management screens** are stubs; the underlying
-  packages are implemented and tested.
+- ~~Notification and API-key management screens are stubs~~ **Done, extended
+  2026-08-10**: both screens were already implemented (destination CRUD + test
+  message, API-key create/revoke). What was genuinely missing was **policy
+  management** — without a policy row no notification is ever sent. Added
+  `createPolicy`/`setPolicyEnabled`/`deletePolicy` to `@payrecon/notifications`
+  (validated, audited via `notification.policy_changed`, threshold requires a
+  currency so unlike currencies are never compared), policy CRUD in both
+  stores, and a Policies section on the notifications screen (10 new unit
+  tests over the memory store).
 - ~~Billing screens~~ **Done, verified live 2026-07-28** against Stripe test
   mode: checkout session creation from the billing screen, webhook signature
   verification at `/api/billing/webhook`, subscribe → plan upgrade and cancel →
   downgrade all observed against the production database.
-- **Retention cleanup** covers uploaded CSV content and dead sessions only — not
-  expired idempotency records or elapsed rate-limit windows.
-- **No metrics backend.** The abstraction points exist; `pino` is in the catalog
-  but no shared logger is wired.
-- **No dead-letter UI.** pg-boss records terminal failures; nothing surfaces them.
+- ~~Retention cleanup misses idempotency/rate-limit state~~ **Done 2026-08-10**:
+  the nightly retention job now also deletes expired `api_idempotency_records`
+  (including wedged in-flight claims) and `api_rate_limit_buckets` whose window
+  elapsed more than a day ago, verified against a live database by
+  `tests/integration/retention-cleanup.test.ts` (4 tests).
+- **No external metrics backend.** What exists since **2026-08-10**
+  (`@payrecon/observability`): a shared pino logger whose every line passes
+  through the domain redaction (sensitive keys blanked, credential-shaped
+  substrings scrubbed from fields and messages — 4 unit tests), plus
+  in-process counters with a bounded series cap. The worker counts every job
+  outcome per queue (`jobs_processed_total` / `jobs_failed_total`, 3 unit
+  tests over the batch runner) and logs the cumulative snapshot once a minute
+  as a greppable line. A scrape endpoint or shipping target remains a
+  deployment decision.
+- ~~No dead-letter UI~~ **Done 2026-08-10**: `listFailedJobs`
+  (`packages/jobs/src/dead-letter.ts`) surfaces pg-boss terminal failures on
+  the runs screen, scoped to the organization id each payload carries. Only
+  queue name, timing, retry count and a redacted message are shown — never the
+  payload; jobs without a tenant id (maintenance ticks) stay SQL-only. Verified
+  by `tests/integration/dead-letter.test.ts` (3 tests, including cross-tenant
+  exclusion and secret redaction).
 - ~~No rate limiting on authentication~~ **Done 2026-07-28**: sign-in, sign-up
   and password-reset are fixed-window rate limited per keyed IP hash, using the
   append-only audit log as the counter (`apps/web/src/server/auth-rate-limit.ts`).
   Sign-up can additionally be made invite-only with `ALLOW_PUBLIC_SIGNUP=false`.
-- **No key re-encryption driver.** `rotateEnvelope` exists; nothing iterates the
-  tables yet.
+- ~~No key re-encryption driver~~ **Done 2026-08-10**: `rotateStoredEnvelopes`
+  (`packages/jobs/src/key-rotation.ts`) sweeps `stripe_credentials` (active
+  rows) and `notification_destinations` Slack secrets, re-encrypting anything
+  still under a retired key; scheduled daily as `maintenance.rotate-envelopes`
+  and audited per organization with counts only. Verified against a live
+  database by `tests/integration/key-rotation.test.ts` (4 tests, including
+  decrypt-under-new-key-alone, idempotence and a poisoned row).
 
 ## Known limitations
 
@@ -194,9 +222,14 @@ Stated plainly rather than described as done:
   API**. Platform billing is likewise verified with hand-written fixtures and a
   fake client — no live key, no real webhook, no real checkout. This is recorded
   rather than claimed as complete.
-- **`store-drizzle.ts` in notifications and platform-billing has thin live-database
-  coverage.** The notification claim path was exercised (and a bug found) via
-  E2E; the billing store's SQL is typechecked but not executed.
+- ~~`store-drizzle.ts` in notifications and platform-billing has thin
+  live-database coverage~~ **Closed 2026-08-10**:
+  `tests/integration/notification-store.test.ts` runs the Slack
+  encrypt/decrypt round trip and the full policy lifecycle in SQL (3 tests),
+  and `tests/integration/billing-store.test.ts` executes every
+  `BillingStore` method against real PostgreSQL — plan updates,
+  customer-insert race convergence, sparse-event subscription upserts,
+  webhook claim idempotency and the limit counters (5 tests).
 - **CSP allows `'unsafe-inline'` for scripts**, which materially weakens XSS
   protection. Next's inlined bootstrap requires it without a nonce-based setup.
   Recorded as residual risk in `docs/THREAT_MODEL.md`, not presented as solved.
@@ -206,5 +239,6 @@ Stated plainly rather than described as done:
 
 ## Next task
 
-Build the CSV upload/mapping screens on top of the already-tested parser, and
-wire the password-reset flow to the existing token model.
+Decide where metrics are scraped or shipped (Prometheus endpoint vs.
+log-derived), and revisit the two recorded residual risks: CSP
+`'unsafe-inline'` and the 200-status not-found page on streamed routes.

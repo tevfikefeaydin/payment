@@ -9,3 +9,10 @@ test-results/
 pnpm-lock.yaml
 packages/db/drizzle/
 *.tsbuildinfo
+
+# VibeCode Terminal process files (not product code)
+playbooks/
+_holding/
+FIKIR-BRIEF.md
+YONETIM-GUNLUGU.md
+companies/
