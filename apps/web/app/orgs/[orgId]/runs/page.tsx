@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { listReconciliationRuns } from "@payrecon/db";
+import { listFailedJobs } from "@payrecon/jobs";
 import { hasPermission } from "@payrecon/domain";
-import { Alert, Card, EmptyState, Identifier, PageHeader } from "@/components/ui";
+import { Alert, Card, EmptyState, Identifier, PageHeader, Table, Td, Th } from "@/components/ui";
 import { ActionForm } from "@/components/action-form";
 import { NotPermitted } from "@/components/forbidden";
 import { asDisplayPairs, humanizeKey } from "@/lib/json";
@@ -37,8 +38,9 @@ export default async function RunsPage({ params }: { params: Promise<{ orgId: st
   }
 
   const canRun = hasPermission(org.role, "reconciliation:run");
-  const [runs, csrf] = await Promise.all([
+  const [runs, failedJobs, csrf] = await Promise.all([
     listReconciliationRuns(db(), org.organizationId, RUN_LIMIT),
+    listFailedJobs(db(), org.organizationId),
     getCsrfToken(),
   ]);
 
@@ -70,6 +72,46 @@ export default async function RunsPage({ params }: { params: Promise<{ orgId: st
             owner can trigger one.
           </p>
         </Alert>
+      )}
+
+      {failedJobs.length > 0 && (
+        <div className="mt-4">
+          <Card
+            title="Failed background jobs"
+            description="Jobs that exhausted their retries. They stay listed until pg-boss's retention removes them; a sync or import shown here did not complete."
+          >
+            <Table caption="Failed background jobs">
+              <thead>
+                <tr>
+                  <Th>Queue</Th>
+                  <Th>Failed</Th>
+                  <Th>Retries</Th>
+                  <Th>Error</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {failedJobs.map((job) => (
+                  <tr key={job.id}>
+                    <Td>
+                      <code className="text-xs">{job.queue}</code>
+                    </Td>
+                    <Td>
+                      {job.failedAt ? (
+                        <span title={displayDateTime(job.failedAt)}>
+                          {displayRelative(job.failedAt)}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </Td>
+                    <Td className="tabular">{job.retryCount}</Td>
+                    <Td className="break-all text-xs">{job.error ?? "No message was recorded."}</Td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </Card>
+        </div>
       )}
 
       {runs.length === 0 ? (
