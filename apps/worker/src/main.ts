@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import { checkEnv, loadEnv } from "@payrecon/config/env";
 import { checkDatabaseConnection, createDatabase } from "@payrecon/db";
 import { getQueue, registerHandlers, registerSchedules, stopQueue } from "@payrecon/jobs";
+import { createLogger, createMetrics } from "@payrecon/observability";
 
 /**
  * Worker entry point.
@@ -27,6 +28,11 @@ if (!envCheck.ok) {
 }
 
 const env = loadEnv();
+const log = createLogger({ component: "worker", level: env.LOG_LEVEL });
+const metrics = createMetrics();
+
+/** How often the cumulative counters are written as one structured line. */
+const METRICS_INTERVAL_MS = 60_000;
 const { db, pool } = createDatabase({
   connectionString: env.DATABASE_URL,
   maxConnections: Math.max(env.WORKER_CONCURRENCY * 2, 4),
@@ -44,6 +50,7 @@ async function main(): Promise<void> {
     db,
     queue,
     reconciliationCron: env.RECONCILIATION_SCHEDULE_CRON,
+    metrics,
     integrations: {
       db,
       appUrl: env.APP_URL,
@@ -63,14 +70,19 @@ async function main(): Promise<void> {
 
   startHealthServer();
 
-  console.warn(
-    JSON.stringify({
-      level: "info",
-      component: "worker",
+  // Cumulative counters, one greppable line a minute. `unref` so the timer
+  // never keeps a shutting-down process alive.
+  setInterval(() => {
+    log.info({ action: "metrics", counters: metrics.snapshot() }, "metrics snapshot");
+  }, METRICS_INTERVAL_MS).unref();
+
+  log.info(
+    {
       action: "started",
       concurrency: env.WORKER_CONCURRENCY,
       reconciliationCron: env.RECONCILIATION_SCHEDULE_CRON,
-    }),
+    },
+    "worker started",
   );
 }
 
@@ -113,9 +125,7 @@ function startHealthServer(): void {
   });
 
   server.listen(port, () => {
-    console.warn(
-      JSON.stringify({ level: "info", component: "worker", action: "health_listening", port }),
-    );
+    log.info({ action: "health_listening", port }, "health endpoint listening");
   });
 }
 
@@ -127,15 +137,16 @@ function startHealthServer(): void {
 async function shutdown(signal: string): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
-  console.warn(JSON.stringify({ level: "info", component: "worker", action: "shutdown", signal }));
+  log.info({ action: "shutdown", signal }, "shutting down");
 
   try {
     await stopQueue();
     await pool.end();
   } catch (error) {
-    console.error("[worker] error during shutdown", {
-      message: error instanceof Error ? error.message : "unknown",
-    });
+    log.error(
+      { message: error instanceof Error ? error.message : "unknown" },
+      "error during shutdown",
+    );
   } finally {
     process.exit(0);
   }
@@ -145,14 +156,13 @@ process.on("SIGTERM", () => void shutdown("SIGTERM"));
 process.on("SIGINT", () => void shutdown("SIGINT"));
 
 process.on("unhandledRejection", (reason) => {
-  console.error("[worker] unhandled rejection", {
-    message: reason instanceof Error ? reason.message : "unknown",
-  });
+  log.error(
+    { message: reason instanceof Error ? reason.message : "unknown" },
+    "unhandled rejection",
+  );
 });
 
 main().catch((error: unknown) => {
-  console.error("[worker] failed to start", {
-    message: error instanceof Error ? error.message : "unknown",
-  });
+  log.error({ message: error instanceof Error ? error.message : "unknown" }, "failed to start");
   process.exit(1);
 });

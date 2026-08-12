@@ -16,6 +16,7 @@
     "@payrecon/domain": "workspace:*",
     "@payrecon/jobs": "workspace:*",
     "@payrecon/notifications": "workspace:*",
+    "@payrecon/observability": "workspace:*",
     "@payrecon/stripe-customer-data": "workspace:*",
     "dotenv": "catalog:",
     "drizzle-orm": "catalog:",

@@ -33,6 +33,10 @@ const alias = [
     find: /^@payrecon\/notifications\/(.*)$/,
     replacement: r("./packages/notifications/src/$1.ts"),
   },
+  {
+    find: /^@payrecon\/observability\/(.*)$/,
+    replacement: r("./packages/observability/src/$1.ts"),
+  },
   { find: /^@payrecon\/ingestion\/(.*)$/, replacement: r("./packages/ingestion/src/$1.ts") },
   {
     find: /^@payrecon\/stripe-customer-data\/(.*)$/,
@@ -50,6 +54,7 @@ const alias = [
   { find: /^@payrecon\/auth$/, replacement: r("./packages/auth/src/index.ts") },
   { find: /^@payrecon\/jobs$/, replacement: r("./packages/jobs/src/index.ts") },
   { find: /^@payrecon\/notifications$/, replacement: r("./packages/notifications/src/index.ts") },
+  { find: /^@payrecon\/observability$/, replacement: r("./packages/observability/src/index.ts") },
   { find: /^@payrecon\/ingestion$/, replacement: r("./packages/ingestion/src/index.ts") },
   {
     find: /^@payrecon\/stripe-customer-data$/,
