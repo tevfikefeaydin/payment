@@ -18,8 +18,10 @@ import type {
   ExceptionRow,
   NewDeliveryRow,
   NewDestinationRow,
+  NewPolicyRow,
   NotificationAuditInput,
   NotificationStore,
+  PolicyPatch,
   PolicyRow,
 } from "./store";
 
@@ -210,6 +212,74 @@ export function createDrizzleNotificationStore(db: Database): NotificationStore 
         );
 
       return rows.map(toPolicyRow);
+    },
+
+    async insertPolicy(row: NewPolicyRow): Promise<PolicyRow> {
+      const inserted = await db
+        .insert(notificationPolicies)
+        .values({
+          organizationId: row.organizationId,
+          destinationId: row.destinationId,
+          minSeverity: row.minSeverity,
+          minRevenueAtRiskMinor: row.minRevenueAtRiskMinor,
+          currency: row.currency,
+          digest: row.digest,
+          criticalBypassesDigest: row.criticalBypassesDigest,
+          enabled: row.enabled,
+          createdAt: row.createdAt,
+          updatedAt: row.createdAt,
+        })
+        .returning();
+
+      const created = inserted[0];
+      if (!created) {
+        throw new PublicError("policy_create_failed", "Could not create the notification policy.");
+      }
+      return toPolicyRow(created);
+    },
+
+    async listPolicies(organizationId: string): Promise<PolicyRow[]> {
+      const rows = await db
+        .select()
+        .from(notificationPolicies)
+        .where(eq(notificationPolicies.organizationId, organizationId))
+        .orderBy(notificationPolicies.createdAt);
+
+      return rows.map(toPolicyRow);
+    },
+
+    async updatePolicy(
+      organizationId: string,
+      policyId: string,
+      patch: PolicyPatch,
+    ): Promise<PolicyRow | null> {
+      const rows = await db
+        .update(notificationPolicies)
+        .set({ enabled: patch.enabled, updatedAt: patch.updatedAt })
+        .where(
+          and(
+            eq(notificationPolicies.organizationId, organizationId),
+            eq(notificationPolicies.id, policyId),
+          ),
+        )
+        .returning();
+
+      const row = rows[0];
+      return row ? toPolicyRow(row) : null;
+    },
+
+    async deletePolicy(organizationId: string, policyId: string): Promise<boolean> {
+      const rows = await db
+        .delete(notificationPolicies)
+        .where(
+          and(
+            eq(notificationPolicies.organizationId, organizationId),
+            eq(notificationPolicies.id, policyId),
+          ),
+        )
+        .returning({ id: notificationPolicies.id });
+
+      return rows.length > 0;
     },
 
     async insertDeliveryIfAbsent(row: NewDeliveryRow): Promise<{ id: string; created: boolean }> {

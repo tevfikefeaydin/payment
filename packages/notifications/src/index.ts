@@ -12,4 +12,5 @@ export * from "./store";
 export * from "./store-drizzle";
 export * from "./memory-store";
 export * from "./destinations";
+export * from "./policies";
 export * from "./delivery";

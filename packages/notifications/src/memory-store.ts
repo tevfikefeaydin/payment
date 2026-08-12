@@ -8,8 +8,10 @@ import type {
   ExceptionRow,
   NewDeliveryRow,
   NewDestinationRow,
+  NewPolicyRow,
   NotificationAuditInput,
   NotificationStore,
+  PolicyPatch,
   PolicyRow,
 } from "./store";
 
@@ -142,6 +144,52 @@ export function createMemoryNotificationStore(): MemoryNotificationStore {
           .filter((policy) => policy.organizationId === organizationId && policy.enabled)
           .map((policy) => ({ ...policy })),
       );
+    },
+
+    insertPolicy(row: NewPolicyRow): Promise<PolicyRow> {
+      const created: PolicyRow = {
+        id: randomUUID(),
+        organizationId: row.organizationId,
+        destinationId: row.destinationId,
+        minSeverity: row.minSeverity,
+        minRevenueAtRiskMinor: row.minRevenueAtRiskMinor,
+        currency: row.currency,
+        digest: row.digest,
+        criticalBypassesDigest: row.criticalBypassesDigest,
+        enabled: row.enabled,
+      };
+      policies.push(created);
+      return Promise.resolve({ ...created });
+    },
+
+    listPolicies(organizationId: string): Promise<PolicyRow[]> {
+      return Promise.resolve(
+        policies
+          .filter((policy) => policy.organizationId === organizationId)
+          .map((policy) => ({ ...policy })),
+      );
+    },
+
+    updatePolicy(
+      organizationId: string,
+      policyId: string,
+      patch: PolicyPatch,
+    ): Promise<PolicyRow | null> {
+      const row = policies.find(
+        (policy) => policy.organizationId === organizationId && policy.id === policyId,
+      );
+      if (!row) return Promise.resolve(null);
+      row.enabled = patch.enabled;
+      return Promise.resolve({ ...row });
+    },
+
+    deletePolicy(organizationId: string, policyId: string): Promise<boolean> {
+      const index = policies.findIndex(
+        (policy) => policy.organizationId === organizationId && policy.id === policyId,
+      );
+      if (index < 0) return Promise.resolve(false);
+      policies.splice(index, 1);
+      return Promise.resolve(true);
     },
 
     // ---- deliveries -----------------------------------------------------

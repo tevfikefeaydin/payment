@@ -104,6 +104,15 @@ export interface PolicyRow {
   enabled: boolean;
 }
 
+export interface NewPolicyRow extends Omit<PolicyRow, "id"> {
+  createdAt: Date;
+}
+
+export interface PolicyPatch {
+  enabled: boolean;
+  updatedAt: Date;
+}
+
 export interface DeliveryRow {
   id: string;
   organizationId: string;
@@ -166,6 +175,16 @@ export interface NotificationStore {
 
   /** Enabled policies only; disabled ones must never produce a delivery. */
   listEnabledPolicies(organizationId: string): Promise<PolicyRow[]>;
+
+  insertPolicy(row: NewPolicyRow): Promise<PolicyRow>;
+  /** Every policy including disabled ones, for the management screen. */
+  listPolicies(organizationId: string): Promise<PolicyRow[]>;
+  updatePolicy(
+    organizationId: string,
+    policyId: string,
+    patch: PolicyPatch,
+  ): Promise<PolicyRow | null>;
+  deletePolicy(organizationId: string, policyId: string): Promise<boolean>;
 
   /**
    * Insert a delivery, relying on the unique `(organization_id, dedupe_key)`

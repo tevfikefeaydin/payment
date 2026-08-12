@@ -3,13 +3,17 @@
 import { getKeyring } from "@payrecon/auth";
 import { loadEnv } from "@payrecon/config/env";
 import { checkLimit, describeLimit } from "@payrecon/platform-billing";
+import { isValidCurrency, normalizeCurrency, parseDecimalToMinor } from "@payrecon/domain";
 import {
   createDrizzleNotificationStore,
   createEmailDestination,
+  createPolicy,
   createSlackDestination,
   createTransports,
   deleteDestination,
+  deletePolicy,
   sendTestMessage,
+  setPolicyEnabled,
 } from "@payrecon/notifications";
 import { actionError, actionSuccess, orgAction, type ActionState } from "./actions";
 import { db } from "./db";
@@ -118,4 +122,110 @@ export async function deleteNotificationDestinationAction(
   formData: FormData,
 ): Promise<ActionState> {
   return deleteHandler(previous, formData);
+}
+
+const createPolicyHandler = orgAction("notifications:manage", async (context, formData) => {
+  const destinationId = formData.get("destinationId");
+  const minSeverity = formData.get("minSeverity");
+  const digest = formData.get("digest");
+  if (
+    typeof destinationId !== "string" ||
+    destinationId.length === 0 ||
+    typeof minSeverity !== "string" ||
+    typeof digest !== "string"
+  ) {
+    return actionError("Choose a destination, a minimum severity and a cadence.");
+  }
+
+  const rawCurrency = formData.get("currency");
+  let currency: string | null = null;
+  if (typeof rawCurrency === "string" && rawCurrency.trim().length > 0) {
+    if (!isValidCurrency(rawCurrency)) {
+      return actionError("Enter a valid three-letter currency code, for example USD.");
+    }
+    currency = normalizeCurrency(rawCurrency);
+  }
+
+  const rawThreshold = formData.get("minRevenueAtRisk");
+  let minRevenueAtRiskMinor: bigint | null = null;
+  if (typeof rawThreshold === "string" && rawThreshold.trim().length > 0) {
+    if (!currency) {
+      return actionError("A revenue threshold needs a currency (for example USD).");
+    }
+    try {
+      minRevenueAtRiskMinor = parseDecimalToMinor(rawThreshold.trim(), currency);
+    } catch {
+      return actionError(
+        "Enter the revenue threshold as a plain amount, for example 250 or 99.50.",
+      );
+    }
+  }
+
+  await createPolicy(createDrizzleNotificationStore(db()), {
+    organizationId: context.org.organizationId,
+    destinationId,
+    minSeverity,
+    digest,
+    minRevenueAtRiskMinor,
+    currency,
+    criticalBypassesDigest: formData.get("criticalBypassesDigest") === "on",
+    actorUserId: context.org.user.id,
+  });
+
+  return actionSuccess("Notification policy created. Matching exceptions will now notify.");
+});
+
+export async function createNotificationPolicyAction(
+  previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return createPolicyHandler(previous, formData);
+}
+
+const togglePolicyHandler = orgAction("notifications:manage", async (context, formData) => {
+  const policyId = formData.get("policyId");
+  const enable = formData.get("enable");
+  if (typeof policyId !== "string" || policyId.length === 0 || typeof enable !== "string") {
+    return actionError("Missing notification policy.");
+  }
+
+  const updated = await setPolicyEnabled(createDrizzleNotificationStore(db()), {
+    organizationId: context.org.organizationId,
+    policyId,
+    enabled: enable === "true",
+    actorUserId: context.org.user.id,
+  });
+  if (!updated) return actionError("That notification policy was not found.", "not_found");
+
+  return actionSuccess(updated.enabled ? "Policy enabled." : "Policy disabled.");
+});
+
+export async function toggleNotificationPolicyAction(
+  previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return togglePolicyHandler(previous, formData);
+}
+
+const deletePolicyHandler = orgAction("notifications:manage", async (context, formData) => {
+  const policyId = formData.get("policyId");
+  if (typeof policyId !== "string" || policyId.length === 0) {
+    return actionError("Missing notification policy.");
+  }
+
+  const deleted = await deletePolicy(createDrizzleNotificationStore(db()), {
+    organizationId: context.org.organizationId,
+    policyId,
+    actorUserId: context.org.user.id,
+  });
+  if (!deleted) return actionError("That notification policy was not found.", "not_found");
+
+  return actionSuccess("Notification policy deleted.");
+});
+
+export async function deleteNotificationPolicyAction(
+  previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return deletePolicyHandler(previous, formData);
 }
