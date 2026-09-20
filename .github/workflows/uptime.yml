@@ -1,18 +1,10 @@
 name: Uptime
 
-# Polls the production health endpoint on a schedule. A non-200 answer fails
-# the run, and GitHub notifies the repository owner about failed scheduled
-# workflows — which turns this into a free uptime alert with no third-party
-# service and no credentials.
-#
-# The worker's health endpoint is added here once the worker moves to a host
-# with a public URL.
+# The project is no longer online, so scheduled uptime checks are paused.
+# Run this check manually when needed. Restore the schedule only after the
+# production service is online again.
 
 on:
-  schedule:
-    # Every 15 minutes. GitHub may delay scheduled runs by a few minutes under
-    # load; that jitter is fine for an availability check.
-    - cron: "*/15 * * * *"
   workflow_dispatch:
 
 permissions: {}
